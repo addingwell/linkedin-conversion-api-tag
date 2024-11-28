@@ -1,4 +1,6 @@
 homepage: "https://addingwell.com"
 versions:
+  - sha: f3e5810b3540b59fb305f16f4ca9d28f6c9a9270
+    changeNotes: Conversion request only when required data is available.
   - sha: aa8f7ee97889285dd1c5091861d527f2334f4678
     changeNotes: Initial release.
