@@ -243,7 +243,14 @@ const user_address = user_data.address || {};
 const api_url = "https://api.linkedin.com/rest/conversionEvents";
 
 if(data.eventType == "conversion") {
-  sendConversionToLinkedIn();
+  let user_data = getUserData();
+  if(checkUserData(user_data)) {
+    let postBody = getPostBody(user_data);
+    sendConversionToLinkedIn(postBody);
+  } else {
+    return data.gtmOnSuccess();
+  }
+  
 } else {
   const url = eventData.page_location || getRequestHeader('referer');
 
@@ -265,7 +272,7 @@ if(data.eventType == "conversion") {
   return data.gtmOnSuccess();
 }
 
-function sendConversionToLinkedIn() {
+function sendConversionToLinkedIn(postBody) {
   sendHttpRequest(
     api_url,
     (statusCode, headers, body) => {
@@ -279,19 +286,19 @@ function sendConversionToLinkedIn() {
       headers: getRequestHeaders(),
       method: 'POST'
     },
-    JSON.stringify(getPostBody())
+    JSON.stringify(postBody)
   );
 }
 
 function getRequestHeaders() {
   return {
     'Content-Type': 'application/json',
-    Authorization: 'Bearer ' + data.accessToken,
+    'Authorization': 'Bearer ' + data.accessToken,
     'LinkedIn-Version': '202409'
   };
 }
 
-function getPostBody() {
+function getPostBody(user_data) {
   let postBody = {
     conversion: 'urn:lla:llaPartnerConversion:' + data.conversionRuleUrn,
     conversionHappenedAt: Math.round(getTimestampMillis()),
@@ -299,7 +306,7 @@ function getPostBody() {
       currencyCode: eventData.currency,
       amount: makeString(eventData.value)
     },
-    user: getUserData()
+    user: user_data
   };
   
   if (data.serverEventDataList) {
@@ -414,14 +421,6 @@ function getUserData() {
     });
   }
   
-  if(JSON.stringify(user_info) != "{}" && (!user_info.firstName || !user_info.lastName)) {
-    logToConsole('You need to provide both firstName and lastName.');
-  }
-  
-  if(!user_ids[0].idValue && !user_ids[1].idValue && !user_ids[2].idValue && !user_ids[3].idValue) {
-    logToConsole('You need to provide at least an email address.');
-  }
-  
   for(let i = user_ids.length - 1; i >= 0; i--) {
     if(!user_ids[i].idValue) {
       user_ids.splice(i, 1);
@@ -430,10 +429,29 @@ function getUserData() {
   
   return {
     userInfo: JSON.stringify(user_info) != "{}" ? user_info : undefined,
-    userIds: JSON.stringify(user_ids) != "{}" ? user_ids : undefined
+    userIds: JSON.stringify(user_ids) != "[]" ? user_ids : undefined
   };
   
 }
+
+function checkUserData(user_data) {
+  
+  let send = true;
+  
+  if(user_data.userInfo && (!user_data.userInfo.firstName || !user_data.userInfo.lastName)) {
+    send = false;
+    logToConsole('You need to provide both firstName and lastName.');
+  }
+  
+  if(!user_data.userIds) {
+    send = false;
+    logToConsole('You need to provide at least an email address.');
+  }
+  
+  return send;
+  
+}
+
 
 function isAlreadyHashed(input){
   return input && (input.toString().match('^[A-Fa-f0-9]{64}$') != null);
