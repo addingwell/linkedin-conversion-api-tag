@@ -1,12 +1,4 @@
-﻿___TERMS_OF_SERVICE___
-
-By creating or modifying this file you agree to Google Tag Manager's Community
-Template Gallery Developer Terms of Service available at
-https://developers.google.com/tag-manager/gallery-tos (or such other URL as
-Google may provide), as modified from time to time.
-
-
-___INFO___
+﻿___INFO___
 
 {
   "type": "TAG",
@@ -299,22 +291,27 @@ function getRequestHeaders() {
 }
 
 function getPostBody(user_data) {
-  let postBody = {
-    conversion: 'urn:lla:llaPartnerConversion:' + data.conversionRuleUrn,
-    conversionHappenedAt: Math.round(getTimestampMillis()),
-    conversionValue: {
-      currencyCode: eventData.currency,
-      amount: makeString(eventData.value)
-    },
-    user: user_data
+
+  let conversionValue = {
+    currencyCode: eventData.currency,
+    amount: eventData.value
   };
   
   if (data.serverEventDataList) {
     data.serverEventDataList.forEach(d => {
-        postBody.conversionValue[d.name] = makeString(d.value);
+      conversionValue[d.name] = d.value;
     });
   }
   
+  if(JSON.stringify(conversionValue) == "{}") conversionValue = undefined;
+  
+  let postBody = {
+    conversion: 'urn:lla:llaPartnerConversion:' + data.conversionRuleUrn,
+    conversionHappenedAt: Math.round(getTimestampMillis()),
+    conversionValue: conversionValue,
+    user: user_data
+  };
+    
   return postBody;
 }
 
