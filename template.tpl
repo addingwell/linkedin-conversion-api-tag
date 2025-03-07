@@ -302,12 +302,12 @@ function getPostBody(user_data) {
 
   let conversionValue = {
     currencyCode: eventData.currency,
-    amount: eventData.value
+    amount: makeString(eventData.value)
   };
   
   if (data.serverEventDataList) {
     data.serverEventDataList.forEach(d => {
-      conversionValue[d.name] = d.value;
+      conversionValue[d.name] = makeString(d.value);
     });
   }
   
