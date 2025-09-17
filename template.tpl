@@ -294,7 +294,7 @@ function getRequestHeaders() {
   return {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer ' + data.accessToken,
-    'LinkedIn-Version': '202409'
+    'LinkedIn-Version': '202509'
   };
 }
 
