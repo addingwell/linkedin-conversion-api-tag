@@ -1,5 +1,8 @@
 homepage: "https://addingwell.com"
+documentation: "https://docs.addingwell.com/en/linkedin-capi"
 versions:
+  - sha: d764b1d3be8cff53d31f739ca68bf020d9333a10
+    changeNotes: Update API version
   - sha: b9d2f223b0082651f1c1408589a037dad711a1d6
     changeNotes: Fix currencyCode and amount
   - sha: f3e5810b3540b59fb305f16f4ca9d28f6c9a9270
