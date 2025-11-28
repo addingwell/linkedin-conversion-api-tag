@@ -294,7 +294,7 @@ function getRequestHeaders() {
   return {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer ' + data.accessToken,
-    'LinkedIn-Version': '202509'
+    'LinkedIn-Version': '202511'
   };
 }
 
@@ -302,7 +302,7 @@ function getPostBody(user_data) {
 
   let conversionValue = {
     currencyCode: eventData.currency,
-    amount: makeString(eventData.value)
+    amount: eventData.value ? makeString(eventData.value) : undefined
   };
   
   if (data.serverEventDataList) {
