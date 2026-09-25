@@ -1,7 +1,7 @@
 homepage: "https://addingwell.com"
 documentation: "https://docs.addingwell.com/en/linkedin-capi"
 versions:
-  - sha: 9e06eaac9c87d972a65177432f9d67a21b0b6434
+  - sha: 68aee29a5848dc25aea1de3451c3c9c983b7eb47
     changeNotes: update API version to 202609
   - sha: a1fd321d0d9adccd768c93b1359c46da516287c4
     changeNotes: Fix value when undefined
