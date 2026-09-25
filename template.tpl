@@ -190,7 +190,7 @@ ___TEMPLATE_PARAMETERS___
               {
                 "value": "ORACLE_MOAT_ID",
                 "displayValue": "Oracle Moat ID"
-              },
+              }
             ],
             "isUnique": true
           },
@@ -267,7 +267,7 @@ if(data.eventType == "conversion") {
         path: '/',
         secure: true,
         httpOnly: false,
-        'max-age': 31556952000
+        'max-age': 7776000
       };
 
       setCookie('li_fat_id', value, options, false);
@@ -327,7 +327,7 @@ function getPostBody(user_data) {
     conversion: 'urn:lla:llaPartnerConversion:' + data.conversionRuleUrn,
     conversionHappenedAt: Math.round(getTimestampMillis()),
     conversionValue: conversionValue,
-    user: user_data
+    user: user_data,
     eventId: eventId
   };
     
