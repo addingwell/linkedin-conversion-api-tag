@@ -106,6 +106,10 @@ ___TEMPLATE_PARAMETERS___
               {
                 "value": "amount",
                 "displayValue": "Amount"
+              },
+              {
+                "value": "eventId",
+                "displayValue": "Event ID"
               }
             ],
             "valueValidators": [],
@@ -186,7 +190,7 @@ ___TEMPLATE_PARAMETERS___
               {
                 "value": "ORACLE_MOAT_ID",
                 "displayValue": "Oracle Moat ID"
-              }
+              },
             ],
             "isUnique": true
           },
@@ -294,7 +298,7 @@ function getRequestHeaders() {
   return {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer ' + data.accessToken,
-    'LinkedIn-Version': '202511'
+    'LinkedIn-Version': '202609'
   };
 }
 
@@ -304,10 +308,16 @@ function getPostBody(user_data) {
     currencyCode: eventData.currency,
     amount: eventData.value ? makeString(eventData.value) : undefined
   };
+
+  let eventId = makeString(eventData.eventId || eventData.event_id);
   
   if (data.serverEventDataList) {
     data.serverEventDataList.forEach(d => {
-      conversionValue[d.name] = makeString(d.value);
+      if(d.name !== "eventId") {
+        conversionValue[d.name] = makeString(d.value);
+      } else {
+        eventId = makeString(d.value);
+      }
     });
   }
   
@@ -318,6 +328,7 @@ function getPostBody(user_data) {
     conversionHappenedAt: Math.round(getTimestampMillis()),
     conversionValue: conversionValue,
     user: user_data
+    eventId: eventId
   };
     
   return postBody;
@@ -376,37 +387,22 @@ function getUserData() {
    if(user_data.companyName) {
      user_info.companyName = user_data.companyName;
    }
+
+   const addressObject = getType(address) == 'array' ? address[0] : address;
     
-   if(getType(address) == 'object') {
-      
-     if(address.first_name) {
-       user_info.firstName = address.first_name;
+   if(getType(addressObject) == 'object') {
+     if(addressObject.first_name || addressObject.sha256_first_name) {
+       user_info.hashedFirstName = hashData(addressObject.first_name || addressObject.sha256_first_name);
      }
       
-     if(address.last_name) {
-       user_info.lastName = address.last_name;
+     if(addressObject.last_name || addressObject.sha256_last_name) {
+       user_info.hashedLastName = hashData(addressObject.last_name || addressObject.sha256_last_name);
      }
 
-     if(address.country) {
-       user_info.countryCode = address.country;
+     if(addressObject.country) {
+       user_info.countryCode = addressObject.country;
      }
-      
-   }
-    
-   if(getType(address) == 'array') {
-    
-     if(address[0].first_name) {
-       user_info.firstName = address[0].first_name;
-     }
-    
-     if(address[0].last_name) {
-       user_info.lastName = address[0].last_name;
-     }
-    
-     if(address[0].country) {
-       user_info.countryCode = address[0].country;
-     }
-    
+
    }
   }
   
@@ -420,6 +416,10 @@ function getUserData() {
         user_ids[2].idValue = d.value;
       } else if(d.name == "ORACLE_MOAT_ID") {
         user_ids[3].idValue = d.value;
+      } else if(d.name == "firstName") {
+        user_info.hashedFirstName = hashData(d.value);
+      } else if(d.name == "lastName") {
+        user_info.hashedLastName = hashData(d.value);
       } else {
         user_info[d.name] = d.value;
       }
@@ -443,7 +443,7 @@ function checkUserData(user_data) {
   
   let send = true;
   
-  if(user_data.userInfo && (!user_data.userInfo.firstName || !user_data.userInfo.lastName)) {
+  if(user_data.userInfo && (!user_data.userInfo.hashedFirstName || !user_data.userInfo.hashedLastName)) {
     send = false;
     logToConsole('You need to provide both firstName and lastName.');
   }
