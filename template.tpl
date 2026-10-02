@@ -1,4 +1,4 @@
-﻿___TERMS_OF_SERVICE___
+___TERMS_OF_SERVICE___
 
 By creating or modifying this file you agree to Google Tag Manager's Community
 Template Gallery Developer Terms of Service available at
@@ -51,6 +51,7 @@ ___TEMPLATE_PARAMETERS___
     "type": "TEXT",
     "name": "conversionRuleUrn",
     "displayName": "Conversion Rule ID",
+    "help": "The conversion rule ID (e.g. 12345678). The full URN (urn:lla:llaPartnerConversion:12345678) is also accepted.",
     "simpleValueType": true,
     "valueValidators": [
       {
@@ -69,6 +70,7 @@ ___TEMPLATE_PARAMETERS___
     "type": "TEXT",
     "name": "accessToken",
     "displayName": "Access Token",
+    "help": "We recommend storing the access token in a Constant variable and referencing it here, rather than pasting it in plain text.",
     "simpleValueType": true,
     "valueValidators": [
       {
@@ -106,6 +108,10 @@ ___TEMPLATE_PARAMETERS___
               {
                 "value": "amount",
                 "displayValue": "Amount"
+              },
+              {
+                "value": "eventId",
+                "displayValue": "Event ID"
               }
             ],
             "valueValidators": [],
@@ -184,8 +190,8 @@ ___TEMPLATE_PARAMETERS___
                 "displayValue": "Acxiom ID"
               },
               {
-                "value": "ORACLE_MOAT_ID",
-                "displayValue": "Oracle Moat ID"
+                "value": "PLAINTEXT_IP_ADDRESS",
+                "displayValue": "IP Address (IPv4)"
               }
             ],
             "isUnique": true
@@ -226,7 +232,6 @@ const sha256Sync = require('sha256Sync');
 const getRequestHeader = require('getRequestHeader');
 const getType = require('getType');
 const makeString = require('makeString');
-const encodeUriComponent = require('encodeUriComponent');
 const getTimestampMillis = require('getTimestampMillis');
 const Math = require('Math');
 const makeNumber = require('makeNumber');
@@ -237,10 +242,8 @@ const setCookie = require('setCookie');
 
 const eventData = getAllEventData();
 
-const user_data = eventData.user_data || {};
-const user_address = user_data.address || {};
-
-const api_url = "https://api.linkedin.com/rest/conversionEvents";
+const apiUrl = "https://api.linkedin.com/rest/conversionEvents";
+const conversionUrnPrefix = "urn:lla:llaPartnerConversion:";
 
 if(data.eventType == "conversion") {
   let user_data = getUserData();
@@ -250,7 +253,7 @@ if(data.eventType == "conversion") {
   } else {
     return data.gtmOnSuccess();
   }
-  
+
 } else {
   const url = eventData.page_location || getRequestHeader('referer');
 
@@ -263,7 +266,7 @@ if(data.eventType == "conversion") {
         path: '/',
         secure: true,
         httpOnly: false,
-        'max-age': 31556952000
+        'max-age': 7776000
       };
 
       setCookie('li_fat_id', value, options, false);
@@ -274,7 +277,7 @@ if(data.eventType == "conversion") {
 
 function sendConversionToLinkedIn(postBody) {
   sendHttpRequest(
-    api_url,
+    apiUrl,
     (statusCode, headers, body) => {
       if (statusCode >= 200 && statusCode < 300) {
         data.gtmOnSuccess();
@@ -294,7 +297,8 @@ function getRequestHeaders() {
   return {
     'Content-Type': 'application/json',
     'Authorization': 'Bearer ' + data.accessToken,
-    'LinkedIn-Version': '202511'
+    'LinkedIn-Version': '202609',
+    'X-Restli-Protocol-Version': '2.0.0'
   };
 }
 
@@ -302,22 +306,32 @@ function getPostBody(user_data) {
 
   let conversionValue = {
     currencyCode: eventData.currency,
-    amount: eventData.value ? makeString(eventData.value) : undefined
+    amount: eventData.value !== undefined && eventData.value !== null && eventData.value !== '' ? makeString(eventData.value) : undefined
   };
+
+  const rawEventId = eventData.eventId || eventData.event_id;
+  let eventId = rawEventId ? makeString(rawEventId) : undefined;
   
   if (data.serverEventDataList) {
     data.serverEventDataList.forEach(d => {
-      conversionValue[d.name] = makeString(d.value);
+      if(d.name !== "eventId") {
+        conversionValue[d.name] = makeString(d.value);
+      } else {
+        eventId = makeString(d.value);
+      }
     });
   }
   
-  if(JSON.stringify(conversionValue) == "{}") conversionValue = undefined;
-  
+  if(!conversionValue.currencyCode || !conversionValue.amount) conversionValue = undefined;
+
+  const conversionRuleId = makeString(data.conversionRuleUrn).trim();
+
   let postBody = {
-    conversion: 'urn:lla:llaPartnerConversion:' + data.conversionRuleUrn,
+    conversion: conversionRuleId.indexOf(conversionUrnPrefix) === 0 ? conversionRuleId : conversionUrnPrefix + conversionRuleId,
     conversionHappenedAt: Math.round(getTimestampMillis()),
     conversionValue: conversionValue,
-    user: user_data
+    user: user_data,
+    eventId: eventId
   };
     
   return postBody;
@@ -343,7 +357,7 @@ function getUserData() {
       idType: "ACXIOM_ID"
     },
     {
-      idType: "ORACLE_MOAT_ID"
+      idType: "PLAINTEXT_IP_ADDRESS"
     }
   ];
   
@@ -368,6 +382,10 @@ function getUserData() {
    if(getClickId()) {
      user_ids[1].idValue = getClickId();
    }
+
+   if(isIPv4(eventData.ip_override)) {
+     user_ids[3].idValue = eventData.ip_override;
+   }
     
    if(user_data.title) {
      user_info.title = user_data.title;
@@ -376,37 +394,22 @@ function getUserData() {
    if(user_data.companyName) {
      user_info.companyName = user_data.companyName;
    }
+
+   const addressObject = getType(address) == 'array' ? address[0] : address;
     
-   if(getType(address) == 'object') {
-      
-     if(address.first_name) {
-       user_info.firstName = address.first_name;
+   if(getType(addressObject) == 'object') {
+     if(addressObject.first_name || addressObject.sha256_first_name) {
+       user_info.hashedFirstName = hashName(addressObject.first_name || addressObject.sha256_first_name);
      }
       
-     if(address.last_name) {
-       user_info.lastName = address.last_name;
+     if(addressObject.last_name || addressObject.sha256_last_name) {
+       user_info.hashedLastName = hashName(addressObject.last_name || addressObject.sha256_last_name);
      }
 
-     if(address.country) {
-       user_info.countryCode = address.country;
+     if(addressObject.country) {
+       user_info.countryCode = makeString(addressObject.country).toUpperCase();
      }
-      
-   }
-    
-   if(getType(address) == 'array') {
-    
-     if(address[0].first_name) {
-       user_info.firstName = address[0].first_name;
-     }
-    
-     if(address[0].last_name) {
-       user_info.lastName = address[0].last_name;
-     }
-    
-     if(address[0].country) {
-       user_info.countryCode = address[0].country;
-     }
-    
+
    }
   }
   
@@ -418,8 +421,14 @@ function getUserData() {
         user_ids[1].idValue = d.value;
       } else if(d.name == "ACXIOM_ID") {
         user_ids[2].idValue = d.value;
-      } else if(d.name == "ORACLE_MOAT_ID") {
-        user_ids[3].idValue = d.value;
+      } else if(d.name == "PLAINTEXT_IP_ADDRESS") {
+        if(isIPv4(d.value)) user_ids[3].idValue = d.value;
+      } else if(d.name == "firstName") {
+        user_info.hashedFirstName = hashName(d.value);
+      } else if(d.name == "lastName") {
+        user_info.hashedLastName = hashName(d.value);
+      } else if(d.name == "countryCode") {
+        user_info.countryCode = makeString(d.value).toUpperCase();
       } else {
         user_info[d.name] = d.value;
       }
@@ -434,7 +443,7 @@ function getUserData() {
   
   return {
     userInfo: JSON.stringify(user_info) != "{}" ? user_info : undefined,
-    userIds: JSON.stringify(user_ids) != "[]" ? user_ids : undefined
+    userIds: user_ids
   };
   
 }
@@ -443,14 +452,14 @@ function checkUserData(user_data) {
   
   let send = true;
   
-  if(user_data.userInfo && (!user_data.userInfo.firstName || !user_data.userInfo.lastName)) {
-    send = false;
-    logToConsole('You need to provide both firstName and lastName.');
+  if(user_data.userInfo && (!user_data.userInfo.hashedFirstName || !user_data.userInfo.hashedLastName)) {
+    user_data.userInfo = undefined;
+    logToConsole('userInfo was not sent: both firstName and lastName are required.');
   }
-  
-  if(!user_data.userIds) {
+
+  if(user_data.userIds.length === 0 && !user_data.userInfo) {
     send = false;
-    logToConsole('You need to provide at least an email address.');
+    logToConsole('You need to provide at least one user identifier (email, li_fat_id, Acxiom ID, IP address, or firstName and lastName).');
   }
   
   return send;
@@ -467,7 +476,36 @@ function hashData(input){
     return input;
   }
 
-  return sha256Sync(input.toString().trim().toLowerCase(), {outputEncoding: 'hex'});
+  return sha256Sync(input.toString().trim().toLowerCase().split(' ').join(''), {outputEncoding: 'hex'});
+}
+
+function normalizeName(input) {
+  const removed = " \t\n\r!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~’‘´";
+  const lowered = input.toString().toLowerCase();
+  let output = '';
+  for(let i = 0; i < lowered.length; i++) {
+    const c = lowered.charAt(i);
+    if(removed.indexOf(c) === -1) output += c;
+  }
+  return output;
+}
+
+function hashName(input){
+  if(input == null || isAlreadyHashed(input)){
+    return input;
+  }
+
+  return sha256Sync(normalizeName(input), {outputEncoding: 'hex'});
+}
+
+function isIPv4(input) {
+  if(getType(input) !== 'string') return false;
+  const parts = input.split('.');
+  if(parts.length !== 4) return false;
+  for(let i = 0; i < parts.length; i++) {
+    if(parts[i].match('^[0-9]{1,3}$') == null || makeNumber(parts[i]) > 255) return false;
+  }
+  return true;
 }
 
 
